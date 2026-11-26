@@ -7,6 +7,7 @@
 // &seed=N) stages that scene instead of running the loop, paints it twice
 // and sets window.__shotReady for a screenshot.
 import { BEST_KEY, STEP } from './config.js';
+import { nextBest } from './best.js';
 import { createRandom } from './random.js';
 import { createWorld, EVENT_BEACON, EVENT_CRASHED, EVENT_LANDED, EVENT_STALL, EVENT_SUPPLY } from './world.js';
 import { ACTION_CONFIRM, ACTION_MUTE, ACTION_PAUSE, ACTION_RESTART, createInput } from './input.js';
@@ -108,8 +109,9 @@ function runGame() {
 
   function endSuccess() {
     screen = 'success';
-    if (world.state.score > best) {
-      best = world.state.score;
+    const updated = nextBest(best, world.state.score);
+    if (updated !== best) {
+      best = updated;
       saveBest(best);
     }
     hud.showSuccess(world.state, best);
@@ -159,6 +161,7 @@ function runGame() {
       roll: input.rollInput(),
       yaw: input.yawInput(),
       throttle: input.throttleInput(),
+      throttleSet: input.throttleSet(),
       brake: input.brake(),
     };
     const events = world.step(STEP, flightInput, false);

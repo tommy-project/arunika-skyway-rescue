@@ -171,11 +171,18 @@ export function createWorld(random) {
   function finishLanding(offStrip) {
     const p = plane;
     const headingDiff = Math.abs(((p.heading - RUNWAY.heading + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-    const alignScore = Math.round(80 * Math.max(0, 1 - headingDiff / 0.5));
-    const vsScore = Math.round(60 * clamp(1 - Math.max(0, -p.vspeed - 2) / 10, 0, 1));
-    const spdScore = Math.round(60 * clamp(1 - Math.abs(p.speed - 32) / 28, 0, 1));
-    let landingScore = alignScore + vsScore + spdScore;
-    if (offStrip) landingScore = Math.round(landingScore / 2);
+    let alignScore = Math.round(80 * Math.max(0, 1 - headingDiff / 0.5));
+    let vsScore = Math.round(60 * clamp(1 - Math.max(0, -p.vspeed - 2) / 10, 0, 1));
+    let spdScore = Math.round(60 * clamp(1 - Math.abs(p.speed - 32) / 28, 0, 1));
+    // A touchdown beside the strip scores half: the halving applies to each
+    // landing sub-score, so the sub-scores always sum exactly to the landing
+    // total (halving the sum instead would leave them adding up to ~2x).
+    if (offStrip) {
+      alignScore = Math.round(alignScore / 2);
+      vsScore = Math.round(vsScore / 2);
+      spdScore = Math.round(spdScore / 2);
+    }
+    const landingScore = alignScore + vsScore + spdScore;
     const smooth = clamp(SCORE.smoothMax - state.stallCount * 25 - state.hardTurns * 5, 0, SCORE.smoothMax);
     const timeBonus = state.elapsed <= SCORE.timeFastSec ? SCORE.timeFast
       : state.elapsed <= SCORE.timeMidSec ? SCORE.timeMid
@@ -183,8 +190,14 @@ export function createWorld(random) {
     const beaconScore = state.score;
     const total = beaconScore + landingScore + smooth + timeBonus;
     state.landing = { alignScore, vsScore, spdScore, landingScore, smooth, timeBonus, offStrip };
+    // Single source of truth for the Mission Complete panel: the additive
+    // rows (beacons + landing.total + smooth + time) sum exactly to total.
+    // The landing decomposition is nested and explicitly non-additive, so
+    // no reader can mistake the sub-scores for extra rows.
     state.breakdown = {
-      beacons: beaconScore, landing: landingScore, smooth, time: timeBonus, total,
+      beacons: beaconScore,
+      landing: { total: landingScore, align: alignScore, vs: vsScore, spd: spdScore, offStrip },
+      smooth, time: timeBonus, total,
     };
     state.score = total;
     state.landed = true;

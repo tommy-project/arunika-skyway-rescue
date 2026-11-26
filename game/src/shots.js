@@ -134,13 +134,13 @@ export function stageShot(name, world) {
     return { screen: 'play', best: 0 };
   }
   if (name === 'beacon') {
-    // Stop a few seconds after clearing Beacon 2, so the passed ring is
-    // behind the camera instead of surrounding it, with Beacon 3 ahead.
-    let afterPass = -1;
+    // Fly on until Beacon 3 is close enough to read as a gate with the
+    // aircraft in the same frame (~210 m): stopping 3 s after Beacon 2
+    // left the next gate a small ring 360 m out, with the aircraft alone.
     flyFor(world, 60, (s) => {
-      if (s.beaconsPassed >= 2 && afterPass < 0) afterPass = 0;
-      if (afterPass >= 0) afterPass += 1;
-      return afterPass > 180;
+      if (s.beaconsPassed < 2) return false;
+      const p = s.plane;
+      return Math.hypot(s.targetX - p.x, s.targetZ - p.z) < 210;
     });
     return { screen: 'play', best: world.state.score };
   }

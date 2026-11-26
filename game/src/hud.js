@@ -66,23 +66,73 @@ export function createHud(doc) {
     hctx.translate(cx, cy);
     hctx.rotate(roll);
     hctx.translate(0, pitch * 70);
-    hctx.fillStyle = '#3f7fb8';
+    // Sunset sky above the horizon, dark ocean below: the same palette as
+    // the world outside, so the instrument reads as part of the scene.
+    const sky = hctx.createLinearGradient(0, -60, 0, 0);
+    sky.addColorStop(0, '#f7c873');
+    sky.addColorStop(0.6, '#e8905a');
+    sky.addColorStop(1, '#ff9a3c');
+    hctx.fillStyle = sky;
     hctx.fillRect(-60, -60, 120, 60);
-    hctx.fillStyle = '#8a6a44';
+    const sea = hctx.createLinearGradient(0, 0, 0, 60);
+    sea.addColorStop(0, '#1d6f7a');
+    sea.addColorStop(1, '#0a2e3a');
+    hctx.fillStyle = sea;
     hctx.fillRect(-60, 0, 120, 60);
+    // Pitch ladder: ticks every ~10 deg (12 px), longer at ~20 deg.
+    hctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    hctx.lineWidth = 1.5;
+    for (const off of [-24, -12, 12, 24]) {
+      const half = Math.abs(off) === 24 ? 22 : 14;
+      hctx.beginPath();
+      hctx.moveTo(-half, off);
+      hctx.lineTo(half, off);
+      hctx.stroke();
+    }
+    // Horizon line: bright, 2.5 px.
     hctx.strokeStyle = '#ffffff';
-    hctx.lineWidth = 2;
+    hctx.lineWidth = 2.5;
     hctx.beginPath();
     hctx.moveTo(-60, 0);
     hctx.lineTo(60, 0);
     hctx.stroke();
     hctx.restore();
+    // Bezel: dark outer ring, crisp white inner ring.
+    hctx.strokeStyle = '#22303c';
+    hctx.lineWidth = 5;
+    hctx.beginPath();
+    hctx.arc(cx, cy, 54, 0, Math.PI * 2);
+    hctx.stroke();
     hctx.strokeStyle = '#ffffff';
     hctx.lineWidth = 2;
     hctx.beginPath();
     hctx.arc(cx, cy, 52, 0, Math.PI * 2);
     hctx.stroke();
-    // Fixed wings marker.
+    // Bank indicator: orange pointer at the top, rolling with the aircraft.
+    hctx.save();
+    hctx.translate(cx, cy);
+    hctx.rotate(roll);
+    hctx.fillStyle = '#ff7a1a';
+    hctx.beginPath();
+    hctx.moveTo(0, -52);
+    hctx.lineTo(-6, -42);
+    hctx.lineTo(6, -42);
+    hctx.closePath();
+    hctx.fill();
+    hctx.restore();
+    // Fixed bank ticks at +/-30 and +/-60 deg around the bezel top.
+    hctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    hctx.lineWidth = 2;
+    for (const deg of [-60, -30, 30, 60]) {
+      const a = (-90 + deg) * Math.PI / 180;
+      hctx.beginPath();
+      hctx.moveTo(cx + Math.cos(a) * 46, cy + Math.sin(a) * 46);
+      hctx.lineTo(cx + Math.cos(a) * 52, cy + Math.sin(a) * 52);
+      hctx.stroke();
+    }
+    // Fixed wings marker, orange, with a white centre dot.
+    hctx.strokeStyle = '#ff7a1a';
+    hctx.lineWidth = 3;
     hctx.beginPath();
     hctx.moveTo(cx - 34, cy);
     hctx.lineTo(cx - 12, cy);
@@ -159,26 +209,29 @@ export function createHud(doc) {
 
   function showSuccess(state, best) {
     const b = state.breakdown;
-    const l = state.landing;
+    const l = b.landing;
     el('success-score').textContent = 'Score ' + state.score;
     el('success-best').textContent = 'Best ' + best;
     el('success-lines').innerHTML = '';
-    const lines = [
-      ['Beacons and supply rings', b.beacons],
-      [l.offStrip ? 'Landing quality (off the strip)' : 'Landing quality (' + RUNWAY.name + ')', b.landing],
-      ['  Alignment', l.alignScore],
-      ['  Descent rate', l.vsScore],
-      ['  Touchdown speed', l.spdScore],
-      ['Smooth flight bonus', b.smooth],
-      ['Time bonus (' + fmtTime(state.elapsed) + ')', b.time],
+    // Additive rows only: their values sum exactly to the final score.
+    // The landing sub-scores are detail under the landing row, shown
+    // without a '+' prefix so they cannot be read as extra points.
+    const rows = [
+      { label: 'Beacons and supply rings', value: b.beacons, additive: true },
+      { label: l.offStrip ? 'Landing quality (off the strip)' : 'Landing quality (' + RUNWAY.name + ')', value: l.total, additive: true },
+      { label: 'Alignment', value: l.align, additive: false },
+      { label: 'Descent rate', value: l.vs, additive: false },
+      { label: 'Touchdown speed', value: l.spd, additive: false },
+      { label: 'Smooth flight bonus', value: b.smooth, additive: true },
+      { label: 'Time bonus (' + fmtTime(state.elapsed) + ')', value: b.time, additive: true },
     ];
-    for (const [label, value] of lines) {
+    for (const { label, value, additive } of rows) {
       const row = doc.createElement('div');
-      row.className = 'score-row';
+      row.className = additive ? 'score-row' : 'score-row score-sub';
       const a = doc.createElement('span');
       a.textContent = label;
       const c = doc.createElement('span');
-      c.textContent = '+' + value;
+      c.textContent = additive ? '+' + value : String(value);
       row.appendChild(a);
       row.appendChild(c);
       el('success-lines').appendChild(row);

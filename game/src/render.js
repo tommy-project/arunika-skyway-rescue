@@ -108,7 +108,9 @@ export function createRenderer(canvas, seed) {
       pos.setX(i, px * wob);
       pos.setZ(i, pz * wob);
       const t = isl.height > 0 ? py / isl.height : 0;
-      if (isl.kind === 'runway' && t > 0.92) c.copy(sand);
+      // The runway island is a cleared airstrip: pale sand over the whole
+      // upper cone, so the strip reads as a prepared field from the air.
+      if (isl.kind === 'runway' && t > 0.55) c.copy(sand);
       else if (t < 0.12) c.copy(sand);
       else if (t < 0.55) c.copy(grass);
       else if (isl.kind === 'volcano') c.copy(volcano);
@@ -124,6 +126,46 @@ export function createRenderer(canvas, seed) {
     const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, flatShading: true }));
     mesh.position.set(isl.x, 0, isl.z);
     islandGroup.add(mesh);
+    // Palm clusters on the palm islands: trunk + five splayed fronds,
+    // planted on the cone slope so each island reads at a glance.
+    if (isl.kind === 'palm') {
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.95, flatShading: true });
+      const frondMat = new THREE.MeshStandardMaterial({ color: 0x2f7a33, roughness: 0.9, flatShading: true });
+      for (let k = 0; k < 5; k += 1) {
+        const a = rng() * Math.PI * 2;
+        const rr = isl.radius * (0.3 + rng() * 0.45);
+        const px = isl.x + Math.cos(a) * rr;
+        const pz = isl.z + Math.sin(a) * rr;
+        const palm = new THREE.Group();
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.8, 7, 6), trunkMat);
+        trunk.position.y = 3.5;
+        palm.add(trunk);
+        for (let f = 0; f < 5; f += 1) {
+          const fa = (f / 5) * Math.PI * 2;
+          const frond = new THREE.Mesh(new THREE.ConeGeometry(1.1, 6.5, 4), frondMat);
+          frond.position.set(Math.cos(fa) * 2.2, 7.2, Math.sin(fa) * 2.2);
+          frond.rotation.z = Math.cos(fa) * 1.1;
+          frond.rotation.x = -Math.sin(fa) * 1.1;
+          palm.add(frond);
+        }
+        palm.position.set(px, terrainHeight(px, pz) - 0.5, pz);
+        islandGroup.add(palm);
+      }
+    }
+    // Boulders on the rock islands: grey slabs breaking the cone silhouette.
+    if (isl.kind === 'rock') {
+      const boulderMat = new THREE.MeshStandardMaterial({ color: hexColor(PALETTE.rock), roughness: 1, flatShading: true });
+      for (let k = 0; k < 4; k += 1) {
+        const a = rng() * Math.PI * 2;
+        const rr = isl.radius * (0.3 + rng() * 0.5);
+        const px = isl.x + Math.cos(a) * rr;
+        const pz = isl.z + Math.sin(a) * rr;
+        const boulder = new THREE.Mesh(new THREE.DodecahedronGeometry(4 + rng() * 5, 0), boulderMat);
+        boulder.position.set(px, terrainHeight(px, pz) + 1.5, pz);
+        boulder.rotation.set(rng() * 3, rng() * 3, rng() * 3);
+        islandGroup.add(boulder);
+      }
+    }
     // Volcano crater glow: a small emissive disc on the peak.
     if (isl.kind === 'volcano') {
       const glow = new THREE.Mesh(
@@ -147,6 +189,22 @@ export function createRenderer(canvas, seed) {
     fall.lookAt(isl.x, fall.position.y, isl.z);
     scene.add(fall);
     falls.push(fall);
+  }
+
+  // Volcano smoke: grey puffs stacked over each crater, so the volcanoes
+  // read as live peaks, not just dark cones. Bobbed gently in draw().
+  const smokePuffs = [];
+  const smokeMat = new THREE.MeshStandardMaterial({ color: 0x8f969e, roughness: 1, transparent: true, opacity: 0.28, flatShading: true });
+  for (const isl of ISLANDS.filter((i) => i.kind === 'volcano')) {
+    for (let k = 0; k < 3; k += 1) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(4.5 + rng() * 4.5, 8, 6), smokeMat);
+      puff.scale.y = 0.7;
+      puff.position.set(isl.x + (rng() - 0.5) * 16, isl.height + 14 + k * 8, isl.z + (rng() - 0.5) * 16);
+      puff.userData.baseY = puff.position.y;
+      puff.userData.phase = rng() * Math.PI * 2;
+      scene.add(puff);
+      smokePuffs.push(puff);
+    }
   }
 
   // Clouds: low-poly puffs that drift with the wind.
@@ -207,15 +265,37 @@ export function createRenderer(canvas, seed) {
     return { group, ring, sprite, beam, def: b };
   });
 
-  // Supply rings: smaller gold torus rings.
+  // Supply rings: smaller gold torus rings, each with a rescue crate slung
+  // underneath on a tether, so the ring reads as a deliberate pickup, not
+  // a stray floating hoop.
   const supplyMeshes = SUPPLY_RINGS.map((r) => {
-    const mesh = new THREE.Mesh(
+    const group = new THREE.Group();
+    const torus = new THREE.Mesh(
       new THREE.TorusGeometry(r.radius, 0.9, 10, 36),
       new THREE.MeshStandardMaterial({ color: hexColor(PALETTE.supply), emissive: hexColor(PALETTE.supply), emissiveIntensity: 1.2, roughness: 0.4 }),
     );
-    mesh.position.set(r.x, r.y, r.z);
-    scene.add(mesh);
-    return { mesh, def: r };
+    group.add(torus);
+    const tether = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.18, 7, 6),
+      new THREE.MeshBasicMaterial({ color: hexColor(PALETTE.supply) }),
+    );
+    tether.position.y = -3.5;
+    group.add(tether);
+    const crate = new THREE.Mesh(
+      new THREE.BoxGeometry(4.2, 4.2, 4.2),
+      new THREE.MeshStandardMaterial({ color: hexColor(PALETTE.planeOrange), roughness: 0.6 }),
+    );
+    crate.position.y = -8.5;
+    group.add(crate);
+    const crateBand = new THREE.Mesh(
+      new THREE.BoxGeometry(4.3, 1.1, 4.3),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 }),
+    );
+    crateBand.position.y = -8.5;
+    group.add(crateBand);
+    group.position.set(r.x, r.y, r.z);
+    scene.add(group);
+    return { mesh: group, torus, def: r };
   });
 
   // Runway: asphalt strip, centre dashes, edge lights, windsock.
@@ -234,6 +314,35 @@ export function createRenderer(canvas, seed) {
     dash.position.set(0, 1.35, i * 22);
     runwayGroup.add(dash);
   }
+  // Threshold bars at both ends of the strip.
+  for (const end of [-1, 1]) {
+    for (let k = -1.5; k <= 1.5; k += 1) {
+      const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(3.2, 0.3, 9),
+        new THREE.MeshBasicMaterial({ color: hexColor(PALETTE.runwayLine) }),
+      );
+      bar.position.set(k * 5, 1.35, end * (RUNWAY.length / 2 - 10));
+      runwayGroup.add(bar);
+    }
+  }
+  // Runway number "7" painted at the approach end, readable from the air
+  // by a pilot on final (digit top points down the strip, away from them).
+  const numCanvas = document.createElement('canvas');
+  numCanvas.width = 128;
+  numCanvas.height = 128;
+  const nctx = numCanvas.getContext('2d');
+  nctx.fillStyle = '#f2f2e8';
+  nctx.font = '900 96px system-ui, sans-serif';
+  nctx.textAlign = 'center';
+  nctx.textBaseline = 'middle';
+  nctx.fillText('7', 64, 70);
+  const numPlane = new THREE.Mesh(
+    new THREE.PlaneGeometry(13, 13),
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(numCanvas), transparent: true, depthWrite: false }),
+  );
+  numPlane.rotation.set(-Math.PI / 2, 0, Math.PI);
+  numPlane.position.set(0, 1.45, -RUNWAY.length / 2 + 24);
+  runwayGroup.add(numPlane);
   const edgeLights = [];
   for (let i = -4; i <= 4; i += 1) {
     for (const side of [-1, 1]) {
@@ -307,6 +416,25 @@ export function createRenderer(canvas, seed) {
   prop.add(blade2);
   prop.position.z = 7.3;
   planeGroup.add(prop);
+  // Spinning-propeller disc: a faint translucent disc behind the blades,
+  // so the prop reads as a blur at screenshot distance, not two sticks.
+  const propDisc = new THREE.Mesh(
+    new THREE.CircleGeometry(2.9, 24),
+    new THREE.MeshBasicMaterial({ color: 0xdfe8ea, transparent: true, opacity: 0.16, side: THREE.DoubleSide, depthWrite: false }),
+  );
+  propDisc.position.z = 7.32;
+  planeGroup.add(propDisc);
+  // Canopy highlight: a pale sliver along the canopy crown.
+  const canopyGlint = new THREE.Mesh(
+    new THREE.BoxGeometry(0.4, 0.12, 1.7),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 }),
+  );
+  canopyGlint.position.set(0.35, 1.92, 1.6);
+  planeGroup.add(canopyGlint);
+  // Tail stripe: a white band across the orange fin.
+  const finStripe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.5, 2.2), white);
+  finStripe.position.set(0, 1.2, -4.2);
+  planeGroup.add(finStripe);
   const navL = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2222 }));
   navL.position.set(-7.6, 0, 0.6);
   planeGroup.add(navL);
@@ -349,11 +477,11 @@ export function createRenderer(canvas, seed) {
     prop.rotation.z = p.propAngle;
 
     // Chase camera: behind and above the aircraft, looking ahead. On the
-    // success screen the camera pulls back and the look target shifts
-    // sideways, so the landed aircraft sits beside the Mission Complete
-    // panel instead of hidden behind it.
-    const back = screen === 'success' ? 38 : 26;
-    const up = screen === 'success' ? 8.5 : 8.5;
+    // success screen the camera pulls back further and the look target
+    // shifts sideways, so the landed aircraft sits in the right half of
+    // the frame, clear of the Mission Complete panel on the left.
+    const back = screen === 'success' ? 46 : 26;
+    const up = screen === 'success' ? 9 : 8.5;
     const wantX = p.x - fwd.x * back;
     const wantY = p.y - fwd.y * back + up;
     const wantZ = p.z - fwd.z * back;
@@ -374,9 +502,9 @@ export function createRenderer(canvas, seed) {
     camTarget.set(p.x + fwd.x * 55, p.y + fwd.y * 55, p.z + fwd.z * 55);
     if (screen === 'success') {
       // Shift the look target toward the aircraft's left, so the aircraft
-      // itself renders right of centre, clear of the centred panel.
-      camTarget.x += fwd.z * 46;
-      camTarget.z += -fwd.x * 46;
+      // itself renders right of centre, clear of the left-side panel.
+      camTarget.x += fwd.z * 64;
+      camTarget.z += -fwd.x * 64;
     }
     camera.lookAt(camTarget);
 
@@ -406,9 +534,12 @@ export function createRenderer(canvas, seed) {
     }
     rpos.needsUpdate = true;
 
-    // Waterfalls shimmer.
+    // Waterfalls shimmer; volcano smoke bobs over the craters.
     for (let i = 0; i < falls.length; i += 1) {
       falls[i].material.opacity = 0.6 + Math.sin(time * 2.2 + i * 2.1) * 0.18;
+    }
+    for (let i = 0; i < smokePuffs.length; i += 1) {
+      smokePuffs[i].position.y = smokePuffs[i].userData.baseY + Math.sin(time * 0.4 + smokePuffs[i].userData.phase) * 2;
     }
 
     // Beacons: pulse the next one, dim passed ones, spin supply rings.
@@ -429,9 +560,9 @@ export function createRenderer(canvas, seed) {
     }
     for (let i = 0; i < supplyMeshes.length; i += 1) {
       const sm = supplyMeshes[i];
-      sm.mesh.rotation.z += 0.01;
+      sm.torus.rotation.z += 0.01;
       sm.mesh.visible = !state.rings[i].passed;
-      sm.mesh.material.emissiveIntensity = 1.0 + Math.sin(time * 3 + i) * 0.4;
+      sm.torus.material.emissiveIntensity = 1.0 + Math.sin(time * 3 + i) * 0.4;
     }
 
     // Windsock points downwind; runway edge lights twinkle.

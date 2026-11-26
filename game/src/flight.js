@@ -39,15 +39,21 @@ export function forwardOf(plane) {
   return { x: sh * cp, y: Math.sin(plane.pitch), z: ch * cp };
 }
 
-// One fixed step. `input` is {pitch, roll, yaw, throttle, brake} in -1..1.
+// One fixed step. `input` is {pitch, roll, yaw, throttle, brake} in -1..1,
+// plus optional throttleSet (absolute 0..1 from the mouse wheel).
 // `env` is {windX, windZ, gustX, gustZ}. Returns nothing; state is mutated.
 export function stepFlight(plane, input, dt, env) {
   plane.prevX = plane.x;
   plane.prevY = plane.y;
   plane.prevZ = plane.z;
 
-  // Throttle: Shift/Ctrl nudge it, brake sheds speed fast.
-  plane.throttle = clamp(plane.throttle + input.throttle * 0.55 * dt, 0, 1);
+  // Throttle: Shift/Ctrl nudge it, brake sheds speed fast. A mouse-wheel
+  // throttle setting (input.throttleSet) overrides absolutely instead.
+  if (typeof input.throttleSet === 'number') {
+    plane.throttle = clamp(input.throttleSet, 0, 1);
+  } else {
+    plane.throttle = clamp(plane.throttle + input.throttle * 0.55 * dt, 0, 1);
+  }
   const targetSpeed = FLIGHT.minSpeed + plane.throttle * (FLIGHT.maxSpeed - FLIGHT.minSpeed);
   let speed = plane.speed;
   if (input.brake) speed -= FLIGHT.brakeDecel * dt;
