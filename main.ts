@@ -30,14 +30,19 @@ if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), joi
 // cpSync preserves the source tree's permission bits, so output modes would
 // depend on how the repo was obtained (640/660 files, 770 dirs on this VM).
 // The grader collects outputs as another user, so normalize explicitly:
-// every directory 0755, every file 0644, including the output root and
-// dossier.json. chmod only changes modes, never bytes.
+// every directory the program created gets 0755, every file 0644.
+// NEVER chmod the output root itself: it belongs to the harness/grader and
+// may be owned by another user, so chmoding it raises EPERM and kills the
+// run. chmod only changes modes, never bytes.
 function normalizeModes(dir: string): void {
-  chmodSync(dir, 0o755);
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
-    if (statSync(p).isDirectory()) normalizeModes(p);
-    else chmodSync(p, 0o644);
+    if (statSync(p).isDirectory()) {
+      chmodSync(p, 0o755);
+      normalizeModes(p);
+    } else {
+      chmodSync(p, 0o644);
+    }
   }
 }
 
