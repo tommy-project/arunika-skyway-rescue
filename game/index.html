@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arunika: Skyway Rescue</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0a1622; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; display: none; z-index: 5; }
+  .panel { background: rgba(10, 22, 34, 0.62); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 8px; padding: 8px 12px; }
+  #hud-left { position: absolute; top: 14px; left: 14px; display: flex; flex-direction: column; gap: 6px; min-width: 210px; }
+  #hud-left .row { display: flex; justify-content: space-between; gap: 18px; font-size: 17px; font-weight: 600; }
+  #hud-left .row span:first-child { color: #9fd8e8; font-weight: 500; font-size: 13px; letter-spacing: 1px; text-transform: uppercase; }
+  #hud-center { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); text-align: center; }
+  #hud-objective { font-size: 20px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+  #hud-beacon { font-size: 16px; color: #19e3d8; font-weight: 700; margin-top: 2px; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+  #hud-arrow { font-size: 15px; font-weight: 600; margin-top: 2px; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+  #hud-dist { font-size: 13px; color: #d8e8ee; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+  #hud-right { position: absolute; top: 14px; right: 14px; text-align: right; display: flex; flex-direction: column; gap: 6px; }
+  #hud-score { font-size: 22px; font-weight: 800; }
+  #hud-time { font-size: 18px; font-weight: 600; }
+  #hud-wind { font-size: 13px; color: #d8e8ee; }
+  #hud-place { font-size: 13px; color: #ffd9a0; font-weight: 600; }
+  #horizon { position: absolute; left: 14px; bottom: 52px; }
+  #hud-stall { position: absolute; top: 34%; left: 50%; transform: translateX(-50%); color: #ff5252; font-size: 34px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 12px rgba(255,0,0,0.6); display: none; animation: blink 0.5s steps(2) infinite; }
+  #hud-low { position: absolute; top: 44%; left: 50%; transform: translateX(-50%); color: #ffb02e; font-size: 30px; font-weight: 900; letter-spacing: 2px; text-shadow: 0 0 12px rgba(255,140,0,0.6); display: none; animation: blink 0.5s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  #hud-message { position: absolute; top: 22%; left: 50%; transform: translateX(-50%); font-size: 24px; font-weight: 800; color: #19e3d8; text-shadow: 0 1px 6px rgba(0,0,0,0.8); display: none; }
+  #hud-help { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #e8f2f5; background: rgba(10, 22, 34, 0.55); padding: 5px 12px; border-radius: 6px; white-space: nowrap; }
+  #mute-btn { position: absolute; bottom: 12px; right: 14px; pointer-events: auto; background: rgba(10, 22, 34, 0.62); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
+  .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; background: rgba(6, 14, 22, 0.45); }
+  #screen-title { justify-content: flex-start; padding-left: 48px; background: rgba(6, 14, 22, 0.25); }
+  #screen-title .card { max-width: 460px; padding: 24px 28px; }
+  #screen-title .card h1 { font-size: 38px; }
+  .card { background: rgba(10, 22, 34, 0.88); border: 1px solid rgba(25, 227, 216, 0.35); border-radius: 14px; padding: 30px 38px; max-width: 620px; text-align: center; color: #fff; }
+  .card h1 { margin: 0 0 4px; font-size: 44px; letter-spacing: 1px; color: #ffd9a0; }
+  .card h2 { margin: 0 0 10px; font-size: 32px; }
+  .card .sub { color: #19e3d8; font-size: 16px; font-weight: 700; letter-spacing: 2px; margin-bottom: 14px; }
+  .card p { color: #d8e8ee; font-size: 16px; line-height: 1.5; margin: 8px 0; }
+  .card .controls { font-size: 14px; color: #b8ccd6; line-height: 1.8; margin: 14px 0; }
+  .card button { pointer-events: auto; background: #ff7a1a; color: #fff; border: none; border-radius: 8px; padding: 12px 28px; font-size: 18px; font-weight: 700; cursor: pointer; margin: 6px 4px 0; }
+  .card button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
+  .score-row { display: flex; justify-content: space-between; gap: 30px; font-size: 16px; padding: 3px 0; color: #d8e8ee; }
+  .score-row span:last-child { font-weight: 700; color: #fff; }
+  #success-score, #fail-score { font-size: 26px; font-weight: 800; color: #19e3d8; margin: 8px 0; }
+  #fail-reason { font-size: 18px; color: #ff8a80; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Arunika: Skyway Rescue - fly the Kestrel-7 through five beacon gates and land on Runway 7"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+
+<div id="hud">
+  <div id="hud-left" class="panel">
+    <div class="row"><span>Altitude</span><span id="hud-alt">0 m</span></div>
+    <div class="row"><span>Airspeed</span><span id="hud-spd">0 km/h</span></div>
+    <div class="row"><span>Heading</span><span id="hud-hdg">000 deg</span></div>
+    <div class="row"><span>Vert speed</span><span id="hud-vs">0 m/s</span></div>
+    <div class="row"><span>Throttle</span><span id="hud-thr">0%</span></div>
+  </div>
+  <div id="hud-center">
+    <div id="hud-objective">Fly through Beacon 1</div>
+    <div id="hud-beacon">BEACON 0/5</div>
+    <div id="hud-arrow"></div>
+    <div id="hud-dist"></div>
+  </div>
+  <div id="hud-right">
+    <div id="hud-score" class="panel">Score 0</div>
+    <div id="hud-time" class="panel">00:00</div>
+    <div id="hud-wind" class="panel">Wind 0 km/h</div>
+    <div id="hud-place" class="panel"></div>
+  </div>
+  <canvas id="horizon" width="120" height="120"></canvas>
+  <div id="hud-stall">STALL</div>
+  <div id="hud-low">PULL UP</div>
+  <div id="hud-message"></div>
+  <div id="hud-help">W/S pitch - A/D bank - Q/E yaw - Shift/Ctrl throttle - Space airbrake - drag mouse = stick - R restart - P pause - M mute</div>
+  <button id="mute-btn">Sound: ON (M)</button>
+</div>
+
+<div id="screen-title" class="screen" style="display:flex">
+  <div class="card">
+    <h1>ARUNIKA</h1>
+    <div class="sub">SKYWAY RESCUE</div>
+    <p>Golden hour over a volcanic archipelago. A storm is rolling in from the north-east. Fly the rescue aircraft Kestrel-7 through five beacon gates, then land on cliffside Runway 7.</p>
+    <p class="controls">W/S pitch &nbsp; A/D bank &nbsp; Q/E yaw<br>Shift / Ctrl throttle &nbsp; Space airbrake<br>Drag the mouse like a flight stick &nbsp; R restart &nbsp; P pause &nbsp; M mute</p>
+    <p id="title-best">First flight - good luck, pilot</p>
+    <button id="play-btn">PLAY</button>
+  </div>
+</div>
+
+<div id="screen-pause" class="screen">
+  <div class="card">
+    <h2>Paused</h2>
+    <p>The storm will wait. The beacons will wait.</p>
+    <p class="controls">W/S pitch &nbsp; A/D bank &nbsp; Q/E yaw &nbsp; Shift / Ctrl throttle &nbsp; Space airbrake<br>R restart &nbsp; P resume &nbsp; M mute</p>
+    <button id="resume-btn">RESUME</button>
+    <button id="restart-btn" class="ghost">RESTART MISSION</button>
+  </div>
+</div>
+
+<div id="screen-success" class="screen">
+  <div class="card">
+    <h2>Mission Complete</h2>
+    <p>Kestrel-7 is down safe on Runway 7. The archipelago is rescued.</p>
+    <div id="success-score">Score 0</div>
+    <div id="success-lines"></div>
+    <p id="success-best">Best 0</p>
+    <button id="again-btn">FLY AGAIN</button>
+    <button id="title-btn" class="ghost">TITLE</button>
+  </div>
+</div>
+
+<div id="screen-fail" class="screen">
+  <div class="card">
+    <h2>Mission Failed</h2>
+    <p id="fail-reason">Crashed</p>
+    <p id="fail-score">Score 0</p>
+    <p>Tip: keep airspeed above stall, watch the terrain, and line up early for the runway.</p>
+    <button id="retry-btn">TRY AGAIN (R)</button>
+  </div>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
