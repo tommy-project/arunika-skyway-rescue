@@ -32,6 +32,10 @@
   #mute-btn { position: absolute; bottom: 12px; right: 14px; pointer-events: auto; background: rgba(10, 22, 34, 0.62); color: #fff; border: 1px solid rgba(255,255,255,0.25); border-radius: 6px; padding: 6px 10px; font-size: 13px; cursor: pointer; }
   .screen { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; background: rgba(6, 14, 22, 0.45); }
   #screen-title { justify-content: flex-start; padding-left: 48px; background: rgba(6, 14, 22, 0.25); }
+  /* Mission Complete sits on the left third, so the landed Kestrel-7 stays
+     visible on the right of the frame instead of hidden behind the card. */
+  #screen-success { justify-content: flex-start; padding-left: 48px; background: rgba(6, 14, 22, 0.35); }
+  #screen-success .card { max-width: 520px; padding: 26px 32px; }
   #screen-title .card { max-width: 460px; padding: 24px 28px; }
   #screen-title .card h1 { font-size: 38px; }
   .card { background: rgba(10, 22, 34, 0.88); border: 1px solid rgba(25, 227, 216, 0.35); border-radius: 14px; padding: 30px 38px; max-width: 620px; text-align: center; color: #fff; }
@@ -44,6 +48,9 @@
   .card button.ghost { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
   .score-row { display: flex; justify-content: space-between; gap: 30px; font-size: 16px; padding: 3px 0; color: #d8e8ee; }
   .score-row span:last-child { font-weight: 700; color: #fff; }
+  /* Landing sub-scores are detail, not extra points: indented, dimmer, no '+' prefix. */
+  .score-sub { font-size: 14px; padding: 1px 0 1px 18px; color: #9fb8c4; }
+  .score-sub span:last-child { font-weight: 600; color: #c8dde6; }
   #success-score, #fail-score { font-size: 26px; font-weight: 800; color: #19e3d8; margin: 8px 0; }
   #fail-reason { font-size: 18px; color: #ff8a80; }
 </style>
@@ -76,7 +83,7 @@
   <div id="hud-stall">STALL</div>
   <div id="hud-low">PULL UP</div>
   <div id="hud-message"></div>
-  <div id="hud-help">W/S pitch - A/D bank - Q/E yaw - Shift/Ctrl throttle - Space airbrake - drag mouse = stick - R restart - P pause - M mute</div>
+  <div id="hud-help">W/S pitch - A/D bank - Q/E yaw - Shift/Ctrl throttle - Space airbrake - drag mouse = stick - mouse wheel = throttle - R restart - P pause - M mute</div>
   <button id="mute-btn">Sound: ON (M)</button>
 </div>
 
@@ -85,7 +92,7 @@
     <h1>ARUNIKA</h1>
     <div class="sub">SKYWAY RESCUE</div>
     <p>Golden hour over a volcanic archipelago. A storm is rolling in from the north-east. Fly the rescue aircraft Kestrel-7 through five beacon gates, then land on cliffside Runway 7.</p>
-    <p class="controls">W/S pitch &nbsp; A/D bank &nbsp; Q/E yaw<br>Shift / Ctrl throttle &nbsp; Space airbrake<br>Drag the mouse like a flight stick &nbsp; R restart &nbsp; P pause &nbsp; M mute</p>
+    <p class="controls">W/S pitch &nbsp; A/D bank &nbsp; Q/E yaw<br>Shift / Ctrl throttle &nbsp; Space airbrake<br>Drag the mouse like a flight stick &nbsp; Mouse wheel: throttle up/down<br>R restart &nbsp; P pause &nbsp; M mute</p>
     <p id="title-best">First flight - good luck, pilot</p>
     <button id="play-btn">PLAY</button>
   </div>
